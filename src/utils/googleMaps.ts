@@ -4,7 +4,7 @@
 // Initialize the map
 export const initGoogleMap = (
   elementId: string,
-  center: google.maps.LatLngLiteral,
+  center: { lat: number; lng: number },
   zoom: number = 12
 ): google.maps.Map | null => {
   const mapElement = document.getElementById(elementId);
@@ -111,7 +111,7 @@ export const initGoogleMap = (
 // Add a marker to the map
 export const addMarker = (
   map: google.maps.Map,
-  position: google.maps.LatLngLiteral,
+  position: { lat: number; lng: number },
   title: string,
   iconColor: string = "#FACC15" 
 ): google.maps.Marker | null => {

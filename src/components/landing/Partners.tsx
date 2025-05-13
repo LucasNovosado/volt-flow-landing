@@ -1,4 +1,3 @@
-
 import { useEffect, useRef, useState } from 'react';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
@@ -62,7 +61,7 @@ const initialPartners: Partner[] = [
 ];
 
 const Partners = () => {
-  const [partners, setPartners] = useState<Partner[]>(initialPartners);
+  const [partners] = useState<Partner[]>(initialPartners);
   const [activePartnerId, setActivePartnerId] = useState<string | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
   
@@ -72,7 +71,6 @@ const Partners = () => {
   const mapRef = useRef<google.maps.Map | null>(null);
   const markersRef = useRef<Map<string, google.maps.Marker>>(new Map());
   const infoWindowRef = useRef<google.maps.InfoWindow | null>(null);
-  const mapInitializedRef = useRef<boolean>(false);
 
   // Function to initialize the map with Google Maps
   const initMap = () => {
@@ -80,19 +78,19 @@ const Partners = () => {
       console.log("Map container not found or Google Maps not loaded");
       return;
     }
-    
-    if (mapInitializedRef.current) {
-      console.log("Map already initialized, skipping");
-      return;
-    }
 
     try {
+      // Check if map is already initialized
+      if (mapRef.current) {
+        console.log("Map already initialized, skipping");
+        return;
+      }
+      
       // Initialize map centered on São Paulo
       const map = initGoogleMap('map-container', { lat: -23.5505, lng: -46.6333 }, 12);
       if (!map) return;
       
       mapRef.current = map;
-      mapInitializedRef.current = true;
       
       // Add markers for each partner
       partners.forEach(partner => {
@@ -146,56 +144,51 @@ const Partners = () => {
     }
   };
 
-  // Initialize map when component mounts
+  // Setup Google Maps loading & cleanup
   useEffect(() => {
-    let googleMapsScript: HTMLScriptElement | null = null;
-    let originalInitMap = window.initMap;
-
-    // Function to load Google Maps API
-    const loadGoogleMapsAPI = () => {
-      // Skip if script is already loaded
-      if (document.querySelector('script[src*="maps.googleapis.com/maps/api/js"]')) {
-        return;
+    let scriptElement: HTMLScriptElement | null = null;
+    const originalInitMap = window.initMap;
+    
+    // Prepare our map initialization function
+    const initMapWrapper = () => {
+      // Call original initMap if it exists
+      if (typeof originalInitMap === 'function') {
+        originalInitMap();
       }
-
-      googleMapsScript = document.createElement('script');
-      googleMapsScript.src = `https://maps.googleapis.com/maps/api/js?key=&callback=initMap&libraries=maps,marker&v=weekly`;
-      googleMapsScript.defer = true;
-      googleMapsScript.async = true;
       
-      // Store original initMap if it exists
-      originalInitMap = window.initMap;
-      
-      // Override initMap
-      window.initMap = () => {
-        // Call original if it exists
-        if (typeof originalInitMap === 'function') {
-          originalInitMap();
-        }
-        
-        // Initialize our map
-        setTimeout(initMap, 0);
-      };
-      
-      document.head.appendChild(googleMapsScript);
+      // Small timeout to ensure DOM is ready
+      setTimeout(initMap, 0);
     };
     
-    // First check if Google Maps is already available
-    if (window.google && window.google.maps) {
-      initMap();
+    // Only load the script if Google Maps is not already available
+    if (!window.google || !window.google.maps) {
+      // Create script element for Google Maps API
+      scriptElement = document.createElement('script');
+      scriptElement.src = `https://maps.googleapis.com/maps/api/js?key=&callback=initMap&libraries=maps,marker&v=weekly`;
+      scriptElement.async = true;
+      scriptElement.defer = true;
+      
+      // Override the global initMap function
+      window.initMap = initMapWrapper;
+      
+      // Add script to document
+      document.head.appendChild(scriptElement);
     } else {
-      // Load Google Maps API if not available
-      loadGoogleMapsAPI();
+      // Google Maps is already loaded, initialize map directly
+      initMap();
     }
     
-    // Cleanup on component unmount
+    // Cleanup function
     return () => {
-      // Reset the global initMap function
-      if (originalInitMap) {
-        window.initMap = originalInitMap;
+      // Restore original initMap
+      window.initMap = originalInitMap;
+      
+      // Clean up the script element if it was added
+      if (scriptElement && scriptElement.parentNode) {
+        scriptElement.parentNode.removeChild(scriptElement);
       }
       
-      // Clear markers
+      // Clear all markers
       if (markersRef.current) {
         markersRef.current.forEach((marker) => {
           if (marker) {
@@ -205,48 +198,51 @@ const Partners = () => {
         markersRef.current.clear();
       }
       
-      // Close info window
+      // Close any open info window
       if (infoWindowRef.current) {
         infoWindowRef.current.close();
         infoWindowRef.current = null;
       }
       
-      // Reset map reference
+      // Clear map reference
       mapRef.current = null;
-      mapInitializedRef.current = false;
     };
   }, [partners]);
   
-  // Animation setup
+  // Animation setup (safer version)
   useEffect(() => {
     gsap.registerPlugin(ScrollTrigger);
     
     const ctx = gsap.context(() => {
       // Animate the section title
-      gsap.from('.partners-title', {
-        scrollTrigger: {
-          trigger: sectionRef.current,
-          start: 'top 70%',
-          toggleActions: 'play none none reverse'
-        },
-        y: 50,
-        opacity: 0,
-        duration: 1,
-        ease: 'power3.out'
-      });
+      if (sectionRef.current) {
+        gsap.from('.partners-title', {
+          scrollTrigger: {
+            trigger: sectionRef.current,
+            start: 'top 70%',
+            toggleActions: 'play none none reverse'
+          },
+          y: 50,
+          opacity: 0,
+          duration: 1,
+          ease: 'power3.out'
+        });
+      }
       
       // Animate the cards with staggered effect
-      gsap.from('.partner-card', {
-        scrollTrigger: {
-          trigger: cardsRef.current,
-          start: 'top 80%',
-        },
-        y: 50,
-        opacity: 0,
-        stagger: 0.2,
-        duration: 0.8,
-        ease: 'back.out(1.4)'
-      });
+      if (cardsRef.current) {
+        gsap.from('.partner-card', {
+          scrollTrigger: {
+            trigger: cardsRef.current,
+            start: 'top 80%',
+          },
+          y: 50,
+          opacity: 0,
+          stagger: 0.2,
+          duration: 0.8,
+          ease: 'back.out(1.4)'
+        });
+      }
       
       // Animate the map
       gsap.from('.map-container', {
