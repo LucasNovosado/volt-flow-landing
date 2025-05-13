@@ -7,6 +7,8 @@ import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { MapPin, ArrowRight } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { AspectRatio } from '@/components/ui/aspect-ratio';
+import { Link } from 'react-router-dom';
+import { initGoogleMap, addMarker, createInfoWindow } from '@/utils/googleMaps';
 
 // Types
 export interface Partner {
@@ -60,29 +62,84 @@ const initialPartners: Partner[] = [
 ];
 
 const Partners = () => {
-  const [mapboxToken, setMapboxToken] = useState<string>('');
   const [partners, setPartners] = useState<Partner[]>(initialPartners);
   const [activePartnerId, setActivePartnerId] = useState<string | null>(null);
+  const [mapLoaded, setMapLoaded] = useState(false);
   
   const sectionRef = useRef<HTMLDivElement>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const cardsRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<google.maps.Map | null>(null);
+  const markersRef = useRef<Map<string, google.maps.Marker>>(new Map());
+  const infoWindowRef = useRef<google.maps.InfoWindow | null>(null);
 
-  // Function to initialize the map (will be implemented with MapBox)
+  // Function to initialize the map with Google Maps
   const initMap = () => {
-    if (!mapboxToken || !mapContainerRef.current) return;
+    if (!mapContainerRef.current || !window.google) return;
     
-    // This is a placeholder - we'll implement the actual map in the future
-    // For now, we'll show a message asking users to enter their MapBox token
-    console.log('Map would initialize with token:', mapboxToken);
+    // Initialize map centered on São Paulo
+    const map = initGoogleMap('map-container', { lat: -23.5505, lng: -46.6333 }, 12);
+    if (!map) return;
+    
+    mapRef.current = map;
+    
+    // Add markers for each partner
+    partners.forEach(partner => {
+      // Convert coordinates from [lng, lat] to {lat, lng}
+      const position = { lat: partner.coordinates[1], lng: partner.coordinates[0] };
+      
+      // Create marker
+      const marker = addMarker(
+        map, 
+        position,
+        partner.name,
+        partner.featured ? '#FACC15' : '#3B82F6'
+      );
+      
+      // Store marker reference
+      markersRef.current.set(partner.id, marker);
+      
+      // Create info window content
+      const content = `
+        <div class="p-2">
+          <h3 class="font-bold text-black">${partner.name}</h3>
+          <p class="text-gray-700 text-sm">${partner.address}</p>
+          <a href="${partner.googleMapsUrl}" target="_blank" class="text-blue-600 text-sm font-medium mt-2 inline-block">Abrir no Google Maps</a>
+        </div>
+      `;
+      
+      // Create info window
+      const infoWindow = createInfoWindow(content);
+      
+      // Add click listener to marker
+      marker.addListener('click', () => {
+        // Close previously opened info window
+        if (infoWindowRef.current) {
+          infoWindowRef.current.close();
+        }
+        
+        // Open this info window
+        infoWindow.open(map, marker);
+        infoWindowRef.current = infoWindow;
+        
+        // Set active partner
+        setActivePartnerId(partner.id);
+      });
+    });
+    
+    setMapLoaded(true);
   };
 
-  // Load map when token is available
+  // Initialize map when Google Maps API is loaded
   useEffect(() => {
-    if (mapboxToken) {
+    // Check if Google Maps API is available
+    if (window.google && window.google.maps && mapContainerRef.current) {
       initMap();
+    } else {
+      // If not available yet, wait for the API to load
+      window.initMap = initMap;
     }
-  }, [mapboxToken]);
+  }, [partners]);
   
   // Animation setup
   useEffect(() => {
@@ -143,10 +200,16 @@ const Partners = () => {
   // Handle clicking "View on map" button
   const handleViewOnMap = (id: string) => {
     setActivePartnerId(id);
-    // Would also pan the map to show the marker
-    const element = document.getElementById(`map-marker-${id}`);
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    
+    // Pan to marker
+    const marker = markersRef.current.get(id);
+    if (marker && mapRef.current) {
+      // Pan map to marker
+      mapRef.current.panTo(marker.getPosition()!);
+      mapRef.current.setZoom(15);
+      
+      // Trigger marker click to show info window
+      google.maps.event.trigger(marker, 'click');
     }
   };
 
@@ -183,72 +246,23 @@ const Partners = () => {
           <p className="text-blue-300 text-lg max-w-3xl mx-auto">
             Descubra onde encontrar o energético BATS perto de você
           </p>
+          {/* Admin link */}
+          <div className="mt-4">
+            <Link to="/admin" className="text-yellow-400 hover:text-yellow-300 underline text-sm">
+              Acesso Administrativo
+            </Link>
+          </div>
         </div>
         
         {/* Map Section */}
         <div className="mb-16 rounded-2xl overflow-hidden map-container h-[400px] bg-blue-950 border border-blue-800/30 relative">
-          {mapboxToken ? (
-            <div ref={mapContainerRef} className="w-full h-full bg-blue-950">
-              {/* Interactive Map will be rendered here */}
+          <div id="map-container" ref={mapContainerRef} className="w-full h-full bg-blue-950">
+            {!mapLoaded && (
               <div className="absolute inset-0 flex items-center justify-center">
                 <p className="text-blue-300">Carregando mapa...</p>
               </div>
-              
-              {/* Sample Map Markers (would be dynamic) */}
-              {partners.map((partner) => (
-                <div 
-                  id={`map-marker-${partner.id}`}
-                  key={`marker-${partner.id}`}
-                  className={`map-pointer absolute w-6 h-6 rounded-full bg-yellow-400 border-2 border-black shadow-lg cursor-pointer ${activePartnerId === partner.id ? 'ring-2 ring-white' : ''}`}
-                  style={{
-                    left: `${30 + Math.random() * 60}%`, 
-                    top: `${20 + Math.random() * 60}%`
-                  }}
-                >
-                  <Popover>
-                    <PopoverTrigger>
-                      <span className="sr-only">{partner.name}</span>
-                    </PopoverTrigger>
-                    <PopoverContent className="bg-blue-900 text-white border-blue-700 p-3 w-64">
-                      <div className="flex flex-col gap-2">
-                        <h4 className="font-bold text-lg">{partner.name}</h4>
-                        <p className="text-sm text-blue-200">{partner.address}</p>
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          className="mt-2 border-yellow-500 text-yellow-500 hover:bg-yellow-500 hover:text-black"
-                          onClick={() => window.open(partner.googleMapsUrl, '_blank')}
-                        >
-                          Abrir no Google Maps
-                          <ArrowRight className="ml-2 h-4 w-4" />
-                        </Button>
-                      </div>
-                    </PopoverContent>
-                  </Popover>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="w-full h-full flex items-center justify-center flex-col gap-4 p-6">
-              <p className="text-blue-300 max-w-lg text-center">
-                Para visualizar o mapa interativo, você precisa inserir sua chave pública do MapBox.
-                Crie uma conta no <a href="https://mapbox.com" target="_blank" rel="noreferrer" className="text-blue-400 underline">Mapbox</a> e insira sua chave pública abaixo:
-              </p>
-              <input 
-                type="text" 
-                placeholder="Chave pública do MapBox" 
-                className="w-full max-w-md p-2 rounded border border-blue-700 bg-blue-900 text-white"
-                onChange={(e) => setMapboxToken(e.target.value)}
-                value={mapboxToken}
-              />
-              <Button 
-                onClick={initMap}
-                className="bg-blue-600 hover:bg-blue-500"
-              >
-                Carregar Mapa
-              </Button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
         
         {/* Partner Cards Section */}

@@ -15,8 +15,8 @@ import {
   AlertDialogTitle, 
   AlertDialogTrigger 
 } from '@/components/ui/alert-dialog';
-import { MapPin, Edit, Cog } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { MapPin, Edit } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 import { Partner } from '@/components/landing/Partners';
 
 const AdminPanel = () => {
@@ -152,13 +152,14 @@ const AdminPanel = () => {
           </div>
           
           <div className="flex gap-2">
-            <Button 
-              onClick={() => navigate('/')}
-              variant="outline"
-              className="border-blue-500 text-blue-300 hover:bg-blue-900"
-            >
-              Ver Site
-            </Button>
+            <Link to="/">
+              <Button 
+                variant="outline"
+                className="border-blue-500 text-blue-300 hover:bg-blue-900"
+              >
+                Ver Site
+              </Button>
+            </Link>
             <Button
               onClick={() => setShowForm(true)}
               className="bg-yellow-500 hover:bg-yellow-600 text-black font-semibold"
