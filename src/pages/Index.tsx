@@ -20,8 +20,8 @@ const Index = () => {
     const ctx = gsap.context(() => {
       // Animation configurations will be added in each component
       
-      // Page reveal animation
-      gsap.from('body', {
+      // Fade in animation for the page content instead of body
+      gsap.from(mainRef.current, {
         opacity: 0,
         duration: 1.5,
         ease: 'power2.inOut'

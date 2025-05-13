@@ -8,7 +8,14 @@ import { MapPin, ArrowRight } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { AspectRatio } from '@/components/ui/aspect-ratio';
 import { Link } from 'react-router-dom';
-import { initGoogleMap, addMarker, createInfoWindow, cleanupGoogleMaps } from '@/utils/googleMaps';
+import { 
+  initGoogleMap, 
+  addMarker, 
+  createInfoWindow, 
+  cleanupGoogleMaps, 
+  loadGoogleMapsScript,
+  removeGoogleMapsScript
+} from '@/utils/googleMaps';
 
 // Types
 export interface Partner {
@@ -69,14 +76,19 @@ const Partners = () => {
   const sectionRef = useRef<HTMLDivElement>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const cardsRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<any>(null);
-  const markersRef = useRef<Map<string, any>>(new Map());
-  const infoWindowRef = useRef<any>(null);
+  const mapRef = useRef<google.maps.Map | null>(null);
+  const markersRef = useRef<Map<string, google.maps.Marker>>(new Map());
+  const infoWindowRef = useRef<google.maps.InfoWindow | null>(null);
   const mapScriptRef = useRef<HTMLScriptElement | null>(null);
+  const callbackNameRef = useRef<string>(`initGoogleMap_${Date.now()}`);
   const isInitializingRef = useRef(false);
+  const isComponentMountedRef = useRef(false);
 
   // Function to initialize the map with Google Maps
   const initMap = () => {
+    // Avoid initialization if component is unmounted
+    if (!isComponentMountedRef.current) return;
+
     // Avoid multiple initializations
     if (isInitializingRef.current || !mapContainerRef.current) {
       return;
@@ -136,6 +148,8 @@ const Partners = () => {
         // Add click listener to marker
         if (window.google && window.google.maps) {
           marker.addListener('click', () => {
+            if (!isComponentMountedRef.current) return;
+
             // Close previously opened info window
             if (infoWindowRef.current) {
               infoWindowRef.current.close();
@@ -161,30 +175,26 @@ const Partners = () => {
 
   // Load Google Maps script and set up map initialization
   useEffect(() => {
-    // Define a unique callback name to avoid conflicts
-    const callbackName = `initGoogleMap_${Date.now()}`;
+    // Mark component as mounted
+    isComponentMountedRef.current = true;
     
     // Create our map initialization function
+    const callbackName = callbackNameRef.current;
+    
+    // Define callback as a property of window
     window[callbackName] = () => {
       console.log("Google Maps API loaded via callback");
-      setTimeout(initMap, 100); // Small delay to ensure DOM is ready
+      // Only initialize if component is still mounted
+      if (isComponentMountedRef.current) {
+        setTimeout(initMap, 100); // Small delay to ensure DOM is ready
+      }
     };
     
-    // Only load script if Google Maps is not already loaded and we don't have a script element yet
-    if ((!window.google || !window.google.maps) && !mapScriptRef.current) {
-      // Create script element for Google Maps API
-      const script = document.createElement('script');
-      mapScriptRef.current = script;
-      
-      script.src = `https://maps.googleapis.com/maps/api/js?key=&callback=${callbackName}`;
-      script.async = true;
-      script.defer = true;
-      
-      // Add script to document
-      document.head.appendChild(script);
-      
+    // Load script if Google Maps is not already loaded
+    if (!window.google || !window.google.maps) {
       console.log("Google Maps script added to head");
-    } else if (window.google && window.google.maps) {
+      mapScriptRef.current = loadGoogleMapsScript(callbackName);
+    } else {
       // Google Maps is already loaded, initialize map directly after a small delay
       console.log("Google Maps already loaded, initializing directly");
       setTimeout(initMap, 100);
@@ -193,6 +203,9 @@ const Partners = () => {
     // Cleanup function
     return () => {
       console.log("Partners component unmounting - cleaning up Google Maps");
+      
+      // Mark component as unmounted to prevent callbacks from running
+      isComponentMountedRef.current = false;
       
       // Cleanup map elements
       cleanupGoogleMaps(markersRef.current, infoWindowRef.current);
@@ -206,9 +219,6 @@ const Partners = () => {
       if (window[callbackName]) {
         window[callbackName] = undefined;
       }
-      
-      // Don't remove the script element to avoid reloading the API
-      // if the component mounts again
     };
   }, [partners]);
   

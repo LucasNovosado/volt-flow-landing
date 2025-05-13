@@ -183,3 +183,40 @@ export const cleanupGoogleMaps = (
     infoWindow.close();
   }
 };
+
+// Load Google Maps script safely
+export const loadGoogleMapsScript = (
+  callbackName: string
+): HTMLScriptElement | null => {
+  // Only load if not already loaded
+  if (window.google && window.google.maps) {
+    return null;
+  }
+  
+  // Look for existing script with this callback
+  const existingScript = document.querySelector(`script[src*="callback=${callbackName}"]`);
+  if (existingScript) {
+    return existingScript as HTMLScriptElement;
+  }
+  
+  // Create new script element
+  const script = document.createElement('script');
+  script.src = `https://maps.googleapis.com/maps/api/js?key=&callback=${callbackName}`;
+  script.async = true;
+  script.defer = true;
+  
+  // Add script to document
+  document.head.appendChild(script);
+  return script;
+};
+
+// Remove script element safely
+export const removeGoogleMapsScript = (script: HTMLScriptElement | null): void => {
+  if (script && script.parentNode) {
+    try {
+      script.parentNode.removeChild(script);
+    } catch (error) {
+      console.warn("Error removing Google Maps script:", error);
+    }
+  }
+};

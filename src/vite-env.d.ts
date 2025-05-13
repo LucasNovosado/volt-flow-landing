@@ -4,7 +4,7 @@
 // Global Google Maps types
 interface Window {
   google: any;
-  initMap: () => void;
+  [key: string]: any; // Allow dynamic callback function names
 }
 
 // Mock types for Google Maps when not available
@@ -94,6 +94,7 @@ declare namespace google {
     
     namespace event {
       function trigger(instance: any, eventName: string, ...args: any[]): void;
+      function clearInstanceListeners(instance: any): void;
     }
   }
 }
