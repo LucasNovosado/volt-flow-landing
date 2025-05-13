@@ -6,6 +6,7 @@ import './index.css'
 // Load Google Maps script
 const loadGoogleMapsScript = () => {
   const script = document.createElement('script');
+  // Note: You should replace the empty key with your actual Google Maps API key in production
   script.src = `https://maps.googleapis.com/maps/api/js?key=&callback=initMap&libraries=maps,marker&v=weekly`;
   script.async = true;
   script.defer = true;

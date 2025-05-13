@@ -72,62 +72,78 @@ const Partners = () => {
   const mapRef = useRef<google.maps.Map | null>(null);
   const markersRef = useRef<Map<string, google.maps.Marker>>(new Map());
   const infoWindowRef = useRef<google.maps.InfoWindow | null>(null);
+  const mapInitializedRef = useRef<boolean>(false);
 
   // Function to initialize the map with Google Maps
   const initMap = () => {
-    if (!mapContainerRef.current || !window.google) return;
+    if (!mapContainerRef.current || !window.google || !window.google.maps) {
+      console.log("Map container not found or Google Maps not loaded");
+      return;
+    }
     
-    // Initialize map centered on São Paulo
-    const map = initGoogleMap('map-container', { lat: -23.5505, lng: -46.6333 }, 12);
-    if (!map) return;
-    
-    mapRef.current = map;
-    
-    // Add markers for each partner
-    partners.forEach(partner => {
-      // Convert coordinates from [lng, lat] to {lat, lng}
-      const position = { lat: partner.coordinates[1], lng: partner.coordinates[0] };
+    if (mapInitializedRef.current) {
+      console.log("Map already initialized, skipping");
+      return;
+    }
+
+    try {
+      // Initialize map centered on São Paulo
+      const map = initGoogleMap('map-container', { lat: -23.5505, lng: -46.6333 }, 12);
+      if (!map) return;
       
-      // Create marker
-      const marker = addMarker(
-        map, 
-        position,
-        partner.name,
-        partner.featured ? '#FACC15' : '#3B82F6'
-      );
+      mapRef.current = map;
+      mapInitializedRef.current = true;
       
-      // Store marker reference
-      markersRef.current.set(partner.id, marker);
-      
-      // Create info window content
-      const content = `
-        <div class="p-2">
-          <h3 class="font-bold text-black">${partner.name}</h3>
-          <p class="text-gray-700 text-sm">${partner.address}</p>
-          <a href="${partner.googleMapsUrl}" target="_blank" class="text-blue-600 text-sm font-medium mt-2 inline-block">Abrir no Google Maps</a>
-        </div>
-      `;
-      
-      // Create info window
-      const infoWindow = createInfoWindow(content);
-      
-      // Add click listener to marker
-      marker.addListener('click', () => {
-        // Close previously opened info window
-        if (infoWindowRef.current) {
-          infoWindowRef.current.close();
-        }
+      // Add markers for each partner
+      partners.forEach(partner => {
+        // Convert coordinates from [lng, lat] to {lat, lng}
+        const position = { lat: partner.coordinates[1], lng: partner.coordinates[0] };
         
-        // Open this info window
-        infoWindow.open(map, marker);
-        infoWindowRef.current = infoWindow;
+        // Create marker
+        const marker = addMarker(
+          map, 
+          position,
+          partner.name,
+          partner.featured ? '#FACC15' : '#3B82F6'
+        );
         
-        // Set active partner
-        setActivePartnerId(partner.id);
+        if (!marker) return;
+        
+        // Store marker reference
+        markersRef.current.set(partner.id, marker);
+        
+        // Create info window content
+        const content = `
+          <div class="p-2">
+            <h3 class="font-bold text-black">${partner.name}</h3>
+            <p class="text-gray-700 text-sm">${partner.address}</p>
+            <a href="${partner.googleMapsUrl}" target="_blank" class="text-blue-600 text-sm font-medium mt-2 inline-block">Abrir no Google Maps</a>
+          </div>
+        `;
+        
+        // Create info window
+        const infoWindow = createInfoWindow(content);
+        
+        // Add click listener to marker
+        marker.addListener('click', () => {
+          // Close previously opened info window
+          if (infoWindowRef.current) {
+            infoWindowRef.current.close();
+          }
+          
+          // Open this info window
+          infoWindow.open(map, marker);
+          infoWindowRef.current = infoWindow;
+          
+          // Set active partner
+          setActivePartnerId(partner.id);
+        });
       });
-    });
-    
-    setMapLoaded(true);
+      
+      setMapLoaded(true);
+    } catch (error) {
+      console.error("Error initializing map:", error);
+    }
   };
 
   // Initialize map when Google Maps API is loaded
@@ -137,8 +153,37 @@ const Partners = () => {
       initMap();
     } else {
       // If not available yet, wait for the API to load
-      window.initMap = initMap;
+      const originalInitMap = window.initMap;
+      window.initMap = () => {
+        // Call original initMap if it exists
+        if (originalInitMap) {
+          originalInitMap();
+        }
+        // Then initialize our map
+        initMap();
+      };
     }
+    
+    // Cleanup function to properly handle component unmounting
+    return () => {
+      // Clear markers to prevent React DOM issues
+      if (markersRef.current) {
+        markersRef.current.forEach((marker) => {
+          marker.setMap(null);
+        });
+        markersRef.current.clear();
+      }
+      
+      // Close any open info windows
+      if (infoWindowRef.current) {
+        infoWindowRef.current.close();
+        infoWindowRef.current = null;
+      }
+      
+      // Reset map reference
+      mapRef.current = null;
+      mapInitializedRef.current = false;
+    };
   }, [partners]);
   
   // Animation setup
@@ -184,14 +229,7 @@ const Partners = () => {
         ease: 'power3.out'
       });
       
-      // Energy pulse animation for the map pointers
-      gsap.to('.map-pointer', {
-        scale: 1.2,
-        repeat: -1,
-        yoyo: true,
-        duration: 1.2,
-        ease: 'sine.inOut'
-      });
+      // Energy pulse animation for the map pointers - removed to fix GSAP warning
     }, sectionRef);
     
     return () => ctx.revert();
@@ -203,13 +241,16 @@ const Partners = () => {
     
     // Pan to marker
     const marker = markersRef.current.get(id);
-    if (marker && mapRef.current) {
+    if (marker && mapRef.current && window.google) {
       // Pan map to marker
-      mapRef.current.panTo(marker.getPosition()!);
-      mapRef.current.setZoom(15);
-      
-      // Trigger marker click to show info window
-      google.maps.event.trigger(marker, 'click');
+      const position = marker.getPosition();
+      if (position) {
+        mapRef.current.panTo(position);
+        mapRef.current.setZoom(15);
+        
+        // Trigger marker click to show info window
+        window.google.maps.event.trigger(marker, 'click');
+      }
     }
   };
 
