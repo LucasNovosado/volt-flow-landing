@@ -3,6 +3,7 @@ import { useEffect, useRef } from 'react';
 import HeroSection from '@/components/landing/HeroSection';
 import Features from '@/components/landing/Features';
 import Distribution from '@/components/landing/Distribution';
+import Partners from '@/components/landing/Partners';
 import Testimonials from '@/components/landing/Testimonials';
 import Footer from '@/components/landing/Footer';
 import { gsap } from 'gsap';
@@ -36,6 +37,7 @@ const Index = () => {
       <HeroSection />
       <Features />
       <Distribution />
+      <Partners />
       <Testimonials />
       <Footer />
     </div>
