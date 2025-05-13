@@ -146,35 +146,66 @@ const Partners = () => {
     }
   };
 
-  // Initialize map when Google Maps API is loaded
+  // Initialize map when component mounts
   useEffect(() => {
-    // Check if Google Maps API is available
-    if (window.google && window.google.maps && mapContainerRef.current) {
-      initMap();
-    } else {
-      // If not available yet, wait for the API to load
-      const originalInitMap = window.initMap;
+    let googleMapsScript: HTMLScriptElement | null = null;
+    let originalInitMap = window.initMap;
+
+    // Function to load Google Maps API
+    const loadGoogleMapsAPI = () => {
+      // Skip if script is already loaded
+      if (document.querySelector('script[src*="maps.googleapis.com/maps/api/js"]')) {
+        return;
+      }
+
+      googleMapsScript = document.createElement('script');
+      googleMapsScript.src = `https://maps.googleapis.com/maps/api/js?key=&callback=initMap&libraries=maps,marker&v=weekly`;
+      googleMapsScript.defer = true;
+      googleMapsScript.async = true;
+      
+      // Store original initMap if it exists
+      originalInitMap = window.initMap;
+      
+      // Override initMap
       window.initMap = () => {
-        // Call original initMap if it exists
-        if (originalInitMap) {
+        // Call original if it exists
+        if (typeof originalInitMap === 'function') {
           originalInitMap();
         }
-        // Then initialize our map
-        initMap();
+        
+        // Initialize our map
+        setTimeout(initMap, 0);
       };
+      
+      document.head.appendChild(googleMapsScript);
+    };
+    
+    // First check if Google Maps is already available
+    if (window.google && window.google.maps) {
+      initMap();
+    } else {
+      // Load Google Maps API if not available
+      loadGoogleMapsAPI();
     }
     
-    // Cleanup function to properly handle component unmounting
+    // Cleanup on component unmount
     return () => {
-      // Clear markers to prevent React DOM issues
+      // Reset the global initMap function
+      if (originalInitMap) {
+        window.initMap = originalInitMap;
+      }
+      
+      // Clear markers
       if (markersRef.current) {
         markersRef.current.forEach((marker) => {
-          marker.setMap(null);
+          if (marker) {
+            marker.setMap(null);
+          }
         });
         markersRef.current.clear();
       }
       
-      // Close any open info windows
+      // Close info window
       if (infoWindowRef.current) {
         infoWindowRef.current.close();
         infoWindowRef.current = null;
@@ -229,7 +260,7 @@ const Partners = () => {
         ease: 'power3.out'
       });
       
-      // Energy pulse animation for the map pointers - removed to fix GSAP warning
+      // Removed problematic GSAP animation for body
     }, sectionRef);
     
     return () => ctx.revert();

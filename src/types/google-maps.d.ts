@@ -80,9 +80,9 @@ declare namespace google.maps {
     ROADMAP: string;
   };
 
-  function event: {
-    trigger(instance: any, eventName: string, ...args: any[]): void;
-  };
+  namespace event {
+    function trigger(instance: any, eventName: string, ...args: any[]): void;
+  }
 }
 
 export {};
