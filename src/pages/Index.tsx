@@ -1,12 +1,43 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+
+import { useEffect, useRef } from 'react';
+import HeroSection from '@/components/landing/HeroSection';
+import Features from '@/components/landing/Features';
+import Distribution from '@/components/landing/Distribution';
+import Testimonials from '@/components/landing/Testimonials';
+import Footer from '@/components/landing/Footer';
+import { gsap } from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
 
 const Index = () => {
+  const mainRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    // Register ScrollTrigger plugin
+    gsap.registerPlugin(ScrollTrigger);
+
+    // Enable smooth scrolling with GSAP
+    const ctx = gsap.context(() => {
+      // Animation configurations will be added in each component
+      
+      // Page reveal animation
+      gsap.from('body', {
+        opacity: 0,
+        duration: 1.5,
+        ease: 'power2.inOut'
+      });
+    }, mainRef);
+
+    return () => ctx.revert();
+  }, []);
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4">Welcome to Your Blank App</h1>
-        <p className="text-xl text-gray-600">Start building your amazing project here!</p>
-      </div>
+    <div ref={mainRef} className="overflow-hidden">
+      <div className="noise-overlay"></div>
+      <HeroSection />
+      <Features />
+      <Distribution />
+      <Testimonials />
+      <Footer />
     </div>
   );
 };
