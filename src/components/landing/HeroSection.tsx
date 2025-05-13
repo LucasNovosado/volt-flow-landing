@@ -6,12 +6,12 @@ import { Button } from '@/components/ui/button';
 const HeroSection = () => {
   const sectionRef = useRef<HTMLDivElement>(null);
   const headlineRef = useRef<HTMLHeadingElement>(null);
-  const canRef = useRef<HTMLDivElement>(null);
+  const canImageRef = useRef<HTMLImageElement>(null);
   
   useEffect(() => {
     const ctx = gsap.context(() => {
       // Animate the can with energy pulses
-      gsap.to(canRef.current, {
+      gsap.to(canImageRef.current, {
         scale: 1.05,
         filter: 'brightness(1.1)',
         duration: 2,
@@ -102,25 +102,17 @@ const HeroSection = () => {
           </div>
         </div>
         
-        <div 
-          ref={canRef}
-          className="md:w-1/2 flex justify-center items-center relative"
-        >
-          {/* Energy Can */}
+        <div className="md:w-1/2 flex justify-center items-center relative">
+          {/* Energy Can - Replaced with uploaded image */}
           <div className="relative w-64 h-80 md:w-80 md:h-96">
             <div className="absolute inset-0 bg-blue-500 rounded-full opacity-20 animate-pulse" style={{ filter: 'blur(40px)' }}></div>
             <div className="h-full w-full flex items-center justify-center">
-              <div className="bg-gray-800 w-40 h-72 md:w-48 md:h-80 rounded-3xl relative overflow-hidden shadow-lg">
-                <div className="absolute inset-0 bg-gradient-to-b from-blue-600 via-blue-700 to-blue-900"></div>
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="text-center">
-                    <div className="text-yellow-500 font-bold text-5xl">BATS</div>
-                    <div className="text-white text-lg">ENERGY</div>
-                    <div className="mt-4 text-xs text-blue-200">ULTRA POTÊNCIA</div>
-                  </div>
-                </div>
-                <div className="absolute bottom-0 w-full h-1/4 bg-gradient-to-t from-black/40 to-transparent"></div>
-              </div>
+              <img 
+                ref={canImageRef}
+                src="/lovable-uploads/b67dcbde-ae51-4518-b4a7-f23d1397bb6e.png"
+                alt="BATS Energy Drink"
+                className="h-full object-contain z-10"
+              />
             </div>
           </div>
         </div>
