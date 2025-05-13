@@ -110,11 +110,11 @@ export const initGoogleMap = (
 
 // Add a marker to the map
 export const addMarker = (
-  map: google.maps.Map,
+  map: any,
   position: { lat: number; lng: number },
   title: string,
   iconColor: string = "#FACC15" 
-): google.maps.Marker | null => {
+): any => {
   if (!window.google || !window.google.maps) return null;
   
   try {
@@ -143,18 +143,43 @@ export const addMarker = (
 // Create an info window for a marker
 export const createInfoWindow = (
   content: string
-): google.maps.InfoWindow => {
+): any => {
   if (!window.google || !window.google.maps) {
     // Return a mock InfoWindow if Google Maps is not loaded
     return {
       open: () => {},
       close: () => {},
       setContent: () => {}
-    } as unknown as google.maps.InfoWindow;
+    };
   }
   
   return new window.google.maps.InfoWindow({
     content,
     maxWidth: 250,
   });
+};
+
+// Safe cleanup function for Google Maps elements
+export const cleanupGoogleMaps = (
+  markers: Map<string, any> | null,
+  infoWindow: any | null
+): void => {
+  // Clean up markers
+  if (markers) {
+    markers.forEach(marker => {
+      if (marker) {
+        // Remove all event listeners
+        if (window.google && window.google.maps && window.google.maps.event) {
+          window.google.maps.event.clearInstanceListeners(marker);
+        }
+        // Remove marker from map
+        marker.setMap(null);
+      }
+    });
+  }
+  
+  // Close info window
+  if (infoWindow) {
+    infoWindow.close();
+  }
 };

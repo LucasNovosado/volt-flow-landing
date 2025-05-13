@@ -1,3 +1,4 @@
+
 import { useEffect, useRef, useState } from 'react';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
@@ -7,7 +8,7 @@ import { MapPin, ArrowRight } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { AspectRatio } from '@/components/ui/aspect-ratio';
 import { Link } from 'react-router-dom';
-import { initGoogleMap, addMarker, createInfoWindow } from '@/utils/googleMaps';
+import { initGoogleMap, addMarker, createInfoWindow, cleanupGoogleMaps } from '@/utils/googleMaps';
 
 // Types
 export interface Partner {
@@ -68,27 +69,37 @@ const Partners = () => {
   const sectionRef = useRef<HTMLDivElement>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const cardsRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<google.maps.Map | null>(null);
-  const markersRef = useRef<Map<string, google.maps.Marker>>(new Map());
-  const infoWindowRef = useRef<google.maps.InfoWindow | null>(null);
+  const mapRef = useRef<any>(null);
+  const markersRef = useRef<Map<string, any>>(new Map());
+  const infoWindowRef = useRef<any>(null);
+  const mapScriptRef = useRef<HTMLScriptElement | null>(null);
+  const isInitializingRef = useRef(false);
 
   // Function to initialize the map with Google Maps
   const initMap = () => {
-    if (!mapContainerRef.current || !window.google || !window.google.maps) {
-      console.log("Map container not found or Google Maps not loaded");
+    // Avoid multiple initializations
+    if (isInitializingRef.current || !mapContainerRef.current) {
       return;
     }
+    
+    isInitializingRef.current = true;
+    console.log("Initializing map");
 
     try {
       // Check if map is already initialized
       if (mapRef.current) {
         console.log("Map already initialized, skipping");
+        isInitializingRef.current = false;
         return;
       }
       
       // Initialize map centered on São Paulo
       const map = initGoogleMap('map-container', { lat: -23.5505, lng: -46.6333 }, 12);
-      if (!map) return;
+      if (!map) {
+        console.error("Failed to initialize map");
+        isInitializingRef.current = false;
+        return;
+      }
       
       mapRef.current = map;
       
@@ -123,93 +134,85 @@ const Partners = () => {
         const infoWindow = createInfoWindow(content);
         
         // Add click listener to marker
-        marker.addListener('click', () => {
-          // Close previously opened info window
-          if (infoWindowRef.current) {
-            infoWindowRef.current.close();
-          }
-          
-          // Open this info window
-          infoWindow.open(map, marker);
-          infoWindowRef.current = infoWindow;
-          
-          // Set active partner
-          setActivePartnerId(partner.id);
-        });
+        if (window.google && window.google.maps) {
+          marker.addListener('click', () => {
+            // Close previously opened info window
+            if (infoWindowRef.current) {
+              infoWindowRef.current.close();
+            }
+            
+            // Open this info window
+            infoWindow.open(map, marker);
+            infoWindowRef.current = infoWindow;
+            
+            // Set active partner
+            setActivePartnerId(partner.id);
+          });
+        }
       });
       
       setMapLoaded(true);
+      isInitializingRef.current = false;
     } catch (error) {
       console.error("Error initializing map:", error);
+      isInitializingRef.current = false;
     }
   };
 
-  // Setup Google Maps loading & cleanup
+  // Load Google Maps script and set up map initialization
   useEffect(() => {
-    let scriptElement: HTMLScriptElement | null = null;
-    const originalInitMap = window.initMap;
+    // Define a unique callback name to avoid conflicts
+    const callbackName = `initGoogleMap_${Date.now()}`;
     
-    // Prepare our map initialization function
-    const initMapWrapper = () => {
-      // Call original initMap if it exists
-      if (typeof originalInitMap === 'function') {
-        originalInitMap();
-      }
-      
-      // Small timeout to ensure DOM is ready
-      setTimeout(initMap, 0);
+    // Create our map initialization function
+    window[callbackName] = () => {
+      console.log("Google Maps API loaded via callback");
+      setTimeout(initMap, 100); // Small delay to ensure DOM is ready
     };
     
-    // Only load the script if Google Maps is not already available
-    if (!window.google || !window.google.maps) {
+    // Only load script if Google Maps is not already loaded and we don't have a script element yet
+    if ((!window.google || !window.google.maps) && !mapScriptRef.current) {
       // Create script element for Google Maps API
-      scriptElement = document.createElement('script');
-      scriptElement.src = `https://maps.googleapis.com/maps/api/js?key=&callback=initMap&libraries=maps,marker&v=weekly`;
-      scriptElement.async = true;
-      scriptElement.defer = true;
+      const script = document.createElement('script');
+      mapScriptRef.current = script;
       
-      // Override the global initMap function
-      window.initMap = initMapWrapper;
+      script.src = `https://maps.googleapis.com/maps/api/js?key=&callback=${callbackName}`;
+      script.async = true;
+      script.defer = true;
       
       // Add script to document
-      document.head.appendChild(scriptElement);
-    } else {
-      // Google Maps is already loaded, initialize map directly
-      initMap();
+      document.head.appendChild(script);
+      
+      console.log("Google Maps script added to head");
+    } else if (window.google && window.google.maps) {
+      // Google Maps is already loaded, initialize map directly after a small delay
+      console.log("Google Maps already loaded, initializing directly");
+      setTimeout(initMap, 100);
     }
     
     // Cleanup function
     return () => {
-      // Restore original initMap
-      window.initMap = originalInitMap;
+      console.log("Partners component unmounting - cleaning up Google Maps");
       
-      // Clean up the script element if it was added
-      if (scriptElement && scriptElement.parentNode) {
-        scriptElement.parentNode.removeChild(scriptElement);
-      }
+      // Cleanup map elements
+      cleanupGoogleMaps(markersRef.current, infoWindowRef.current);
       
-      // Clear all markers
-      if (markersRef.current) {
-        markersRef.current.forEach((marker) => {
-          if (marker) {
-            marker.setMap(null);
-          }
-        });
-        markersRef.current.clear();
-      }
-      
-      // Close any open info window
-      if (infoWindowRef.current) {
-        infoWindowRef.current.close();
-        infoWindowRef.current = null;
-      }
-      
-      // Clear map reference
+      // Clear all markers and references
+      markersRef.current.clear();
       mapRef.current = null;
+      infoWindowRef.current = null;
+      
+      // Remove the window callback
+      if (window[callbackName]) {
+        window[callbackName] = undefined;
+      }
+      
+      // Don't remove the script element to avoid reloading the API
+      // if the component mounts again
     };
   }, [partners]);
   
-  // Animation setup (safer version)
+  // Setup GSAP animations
   useEffect(() => {
     gsap.registerPlugin(ScrollTrigger);
     
@@ -244,7 +247,7 @@ const Partners = () => {
         });
       }
       
-      // Animate the map
+      // Animate the map container
       gsap.from('.map-container', {
         scrollTrigger: {
           trigger: '.map-container',
@@ -256,7 +259,7 @@ const Partners = () => {
         ease: 'power3.out'
       });
       
-      // Removed problematic GSAP animation for body
+      // Remove problematic GSAP animation for body
     }, sectionRef);
     
     return () => ctx.revert();
@@ -268,7 +271,7 @@ const Partners = () => {
     
     // Pan to marker
     const marker = markersRef.current.get(id);
-    if (marker && mapRef.current && window.google) {
+    if (marker && mapRef.current && window.google && window.google.maps) {
       // Pan map to marker
       const position = marker.getPosition();
       if (position) {
