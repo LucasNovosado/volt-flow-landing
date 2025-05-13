@@ -1,9 +1,13 @@
-
 // Google Maps implementation utility
 
 // Variable to track if script is already being loaded
 let isLoadingScript = false;
 let loadedScriptElement: HTMLScriptElement | null = null;
+
+// Get API key from environment variables
+const getApiKey = (): string => {
+  return import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
+};
 
 // Initialize the map
 export const initGoogleMap = (
@@ -192,6 +196,13 @@ export const cleanupGoogleMaps = (
 export const loadGoogleMapsScript = (
   callbackName: string
 ): HTMLScriptElement | null => {
+  // Check if we have an API key
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    console.warn('Google Maps API key not found. Please set VITE_GOOGLE_MAPS_API_KEY in your .env file');
+    return null;
+  }
+
   // Only load if not already loaded or loading
   if (window.google && window.google.maps) {
     return null;
@@ -207,9 +218,16 @@ export const loadGoogleMapsScript = (
   // Create new script element
   const script = document.createElement('script');
   script.id = `google-maps-script-${Date.now()}`;
-  script.src = `https://maps.googleapis.com/maps/api/js?key=&callback=${callbackName}`;
+  script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&callback=${callbackName}`;
   script.async = true;
   script.defer = true;
+  
+  // Add error handler
+  script.onerror = () => {
+    console.error('Failed to load Google Maps script');
+    isLoadingScript = false;
+    loadedScriptElement = null;
+  };
   
   // Store reference to script element
   loadedScriptElement = script;
@@ -225,8 +243,8 @@ export const removeGoogleMapsScript = (script: HTMLScriptElement | null): void =
   
   try {
     // Only remove if script exists and is actually in the document
-    if (script && document.head.contains(script)) {
-      document.head.removeChild(script);
+    if (script.parentNode && document.head.contains(script)) {
+      script.parentNode.removeChild(script);
     }
   } catch (error) {
     console.warn("Error removing Google Maps script:", error);

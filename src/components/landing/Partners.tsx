@@ -203,8 +203,16 @@ const Partners = () => {
   // Load Google Maps script and set up map initialization
   useEffect(() => {
     // Mark component as mounted
-    isComponentMountedRef.current = true;
-    
+ isComponentMountedRef.current = true;
+  
+  // Check if we should load Google Maps
+  const shouldLoadMaps = process.env.NODE_ENV === 'production' || 
+                         process.env.VITE_GOOGLE_MAPS_API_KEY;
+  
+  if (!shouldLoadMaps) {
+    console.warn('Google Maps API key not found. Map will not load.');
+    return;
+  }    
     const callbackName = callbackNameRef.current;
     
     // Define callback as a property of window
