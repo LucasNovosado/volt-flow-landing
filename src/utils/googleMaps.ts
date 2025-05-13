@@ -1,6 +1,10 @@
 
 // Google Maps implementation utility
 
+// Variable to track if script is already being loaded
+let isLoadingScript = false;
+let loadedScriptElement: HTMLScriptElement | null = null;
+
 // Initialize the map
 export const initGoogleMap = (
   elementId: string,
@@ -188,35 +192,52 @@ export const cleanupGoogleMaps = (
 export const loadGoogleMapsScript = (
   callbackName: string
 ): HTMLScriptElement | null => {
-  // Only load if not already loaded
+  // Only load if not already loaded or loading
   if (window.google && window.google.maps) {
     return null;
   }
   
-  // Look for existing script with this callback
-  const existingScript = document.querySelector(`script[src*="callback=${callbackName}"]`);
-  if (existingScript) {
-    return existingScript as HTMLScriptElement;
+  if (isLoadingScript) {
+    return loadedScriptElement;
   }
+  
+  // Set loading flag
+  isLoadingScript = true;
   
   // Create new script element
   const script = document.createElement('script');
+  script.id = `google-maps-script-${Date.now()}`;
   script.src = `https://maps.googleapis.com/maps/api/js?key=&callback=${callbackName}`;
   script.async = true;
   script.defer = true;
+  
+  // Store reference to script element
+  loadedScriptElement = script;
   
   // Add script to document
   document.head.appendChild(script);
   return script;
 };
 
-// Remove script element safely
+// Remove script element safely and reset loading state
 export const removeGoogleMapsScript = (script: HTMLScriptElement | null): void => {
-  if (script && script.parentNode) {
-    try {
-      script.parentNode.removeChild(script);
-    } catch (error) {
-      console.warn("Error removing Google Maps script:", error);
+  if (!script) return;
+  
+  try {
+    // Only remove if script exists and is actually in the document
+    if (script && document.head.contains(script)) {
+      document.head.removeChild(script);
     }
+  } catch (error) {
+    console.warn("Error removing Google Maps script:", error);
+  } finally {
+    // Reset loading state
+    isLoadingScript = false;
+    loadedScriptElement = null;
   }
+};
+
+// Check if Google Maps is loaded
+export const isGoogleMapsLoaded = (): boolean => {
+  return !!(window.google && window.google.maps);
 };

@@ -4,7 +4,7 @@ import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
-import { MapPin, ArrowRight } from 'lucide-react';
+import { MapPin } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { AspectRatio } from '@/components/ui/aspect-ratio';
 import { Link } from 'react-router-dom';
@@ -14,7 +14,8 @@ import {
   createInfoWindow, 
   cleanupGoogleMaps, 
   loadGoogleMapsScript,
-  removeGoogleMapsScript
+  removeGoogleMapsScript,
+  isGoogleMapsLoaded
 } from '@/utils/googleMaps';
 
 // Types
@@ -83,6 +84,32 @@ const Partners = () => {
   const callbackNameRef = useRef<string>(`initGoogleMap_${Date.now()}`);
   const isInitializingRef = useRef(false);
   const isComponentMountedRef = useRef(false);
+  
+  const cleanupMap = () => {
+    if (!isComponentMountedRef.current) return;
+    
+    console.log("Partners component unmounting - cleaning up Google Maps");
+    
+    // Cleanup map elements
+    cleanupGoogleMaps(markersRef.current, infoWindowRef.current);
+    
+    // Clear all markers and references
+    markersRef.current.clear();
+    mapRef.current = null;
+    infoWindowRef.current = null;
+    
+    // Remove script
+    const callback = window[callbackNameRef.current];
+    if (callback) {
+      delete window[callbackNameRef.current];
+    }
+    
+    // Remove script element
+    if (mapScriptRef.current) {
+      removeGoogleMapsScript(mapScriptRef.current);
+      mapScriptRef.current = null;
+    }
+  };
 
   // Function to initialize the map with Google Maps
   const initMap = () => {
@@ -178,7 +205,6 @@ const Partners = () => {
     // Mark component as mounted
     isComponentMountedRef.current = true;
     
-    // Create our map initialization function
     const callbackName = callbackNameRef.current;
     
     // Define callback as a property of window
@@ -190,39 +216,24 @@ const Partners = () => {
       }
     };
     
-    // Load script if Google Maps is not already loaded
-    if (!window.google || !window.google.maps) {
-      console.log("Google Maps script added to head");
-      mapScriptRef.current = loadGoogleMapsScript(callbackName);
-    } else {
-      // Google Maps is already loaded, initialize map directly after a small delay
+    // Check if Google Maps is already loaded
+    if (isGoogleMapsLoaded()) {
       console.log("Google Maps already loaded, initializing directly");
       setTimeout(initMap, 100);
+    } else {
+      // Load the Google Maps script
+      console.log("Google Maps script added to head");
+      mapScriptRef.current = loadGoogleMapsScript(callbackName);
     }
     
     // Cleanup function
     return () => {
-      console.log("Partners component unmounting - cleaning up Google Maps");
-      
-      // Mark component as unmounted to prevent callbacks from running
       isComponentMountedRef.current = false;
-      
-      // Cleanup map elements
-      cleanupGoogleMaps(markersRef.current, infoWindowRef.current);
-      
-      // Clear all markers and references
-      markersRef.current.clear();
-      mapRef.current = null;
-      infoWindowRef.current = null;
-      
-      // Remove the window callback
-      if (window[callbackName]) {
-        window[callbackName] = undefined;
-      }
+      cleanupMap();
     };
-  }, [partners]);
+  }, []);
   
-  // Setup GSAP animations
+  // Setup GSAP animations - avoid DOM manipulations that could conflict with map
   useEffect(() => {
     gsap.registerPlugin(ScrollTrigger);
     
@@ -268,8 +279,6 @@ const Partners = () => {
         duration: 1,
         ease: 'power3.out'
       });
-      
-      // Remove problematic GSAP animation for body
     }, sectionRef);
     
     return () => ctx.revert();
